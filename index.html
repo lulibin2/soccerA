@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>休闲比赛历史结果分析工具 (v12-在线版)</title>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@latest/dist/xlsx.full.min.js"></script>
+    <style>
+        /* ... 此处省略 v11 的全部 CSS 样式代码，因为它们没有变化 ... */
+        :root { --bg-color: #1a1a2e; --primary-color: #0f3460; --secondary-color: #16213e; --accent-color: #e94560; --text-color: #e0e0e0; --border-color: #0f3460; --input-bg: #16213e; --input-border: #4a4e69; --success-color: #4CAF50; --error-color: #f44336; }
+        body { font-family: 'Segoe UI', sans-serif; background-color: var(--bg-color); color: var(--text-color); margin: 0; padding: 20px; font-size: 14px; }
+        .container { max-width: 1400px; margin: 0 auto; display: grid; grid-template-columns: 1fr; gap: 20px; }
+        .card { background-color: var(--secondary-color); border-radius: 8px; padding: 20px; box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2); border: 1px solid var(--border-color); }
+        h1, h2, h3 { color: var(--accent-color); border-bottom: 2px solid var(--accent-color); padding-bottom: 10px; margin-top: 0; }
+        h3 { border-bottom: none; color: #e0e0e0; padding-bottom: 0; }
+        .control-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 15px; align-items: end; }
+        .control-item { display: flex; flex-direction: column; }
+        label { margin-bottom: 5px; font-weight: bold; }
+        input[type="file"], input[type="number"], input[type="text"], input[type="password"], select, button { background-color: var(--input-bg); color: var(--text-color); border: 1px solid var(--input-border); border-radius: 4px; padding: 10px; font-size: 1em; transition: all 0.3s ease; box-sizing: border-box; width: 100%;}
+        input[type="file"] { padding: 7px; }
+        input[type="number"]::-webkit-inner-spin-button, input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+        input[type="number"] { -moz-appearance: textfield; }
+        input:focus, select:focus, button:focus { outline: none; border-color: var(--accent-color); box-shadow: 0 0 5px var(--accent-color); }
+        button { cursor: pointer; background-color: var(--primary-color); font-weight: bold; }
+        button:hover { background-color: var(--accent-color); color: #fff; }
+        button:disabled { background-color: #333; color: #777; cursor: not-allowed; }
+        #strategy-builder { margin-top: 20px; display: grid; gap: 15px; }
+        .parlay-leg { background-color: var(--primary-color); padding: 15px; border-radius: 6px; border-left: 5px solid var(--accent-color); }
+        .parlay-leg-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+        .parlay-leg-header h3 { margin: 0; color: var(--accent-color); border: none;}
+        .parlay-leg-header select { width: 200px; }
+        .outcome-selector { margin-top: 10px; padding: 10px; background-color: var(--secondary-color); border-radius: 4px; }
+        .outcome-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px; }
+        .outcome-item { display: flex; align-items: center; background-color: var(--input-bg); padding: 5px 8px; border-radius: 3px; }
+        .outcome-item input[type="checkbox"] { width: auto; margin-right: 8px; }
+        .outcome-item label { margin-bottom: 0; }
+        .outcome-item input[type="checkbox"]:disabled + label { color: #777; }
+        #results-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px; text-align: center; }
+        .result-item { background-color: var(--primary-color); padding: 15px; border-radius: 6px; }
+        .result-item .value { font-size: 1.8em; font-weight: bold; color: var(--accent-color); }
+        .status-message { margin-top: 10px; padding: 10px; border-radius: 4px; text-align: center; word-break: break-all; }
+        .status-success { background-color: var(--success-color); color: white; }
+        .status-error { background-color: var(--error-color); color: white; }
+        .status-info { background-color: var(--primary-color); color: var(--text-color); }
+        .loader { border: 4px solid #f3f3f3; border-top: 4px solid var(--accent-color); border-radius: 50%; width: 30px; height: 30px; animation: spin 1s linear infinite; display: none; margin: 20px auto; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        #batch-results-card table { width: 100%; border-collapse: collapse; margin-top: 20px; table-layout: fixed;}
+        #batch-results-card th, #batch-results-card td { border: 1px solid var(--input-border); padding: 10px; text-align: left; }
+        #batch-results-card th { background-color: var(--primary-color); }
+        #batch-results-card td { background-color: var(--secondary-color); word-wrap: break-word; }
+        #batch-results-card .strategy-details { font-size: 0.9em; }
+        .highlight-col { font-weight: bold; color: var(--accent-color); }
+        .batch-results-actions { display: flex; justify-content: flex-end; gap: 15px; margin-top: 20px; }
+        .note-text { font-size: 0.9em; color: #aaa; margin-top: -10px; margin-bottom: 10px; }
+        /* New styles for password overlay */
+        #password-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.8); z-index: 1000; display: flex; justify-content: center; align-items: center; backdrop-filter: blur(5px); }
+        #password-box { background-color: var(--secondary-color); padding: 30px; border-radius: 8px; text-align: center; box-shadow: 0 5px 15px rgba(0,0,0,0.3); border: 1px solid var(--accent-color); }
+        #password-box h2 { margin-top: 0; }
+        #password-input { text-align: center; font-size: 1.2em; margin: 15px 0; }
+    </style>
+</head>
+<body>
+    <!-- New: Password Protection Overlay -->
+    <div id="password-overlay">
+        <div id="password-box">
+            <h2>请输入访问密码</h2>
+            <input type="password" id="password-input" autofocus>
+            <button id="password-submit">进入</button>
+            <p id="password-error" style="color: var(--error-color); display: none; margin-top:10px;">密码错误！</p>
+        </div>
+    </div>
+    
+    <div class="container" style="display:none;">
+        <!-- Card 1: Data Status (replaces loading) -->
+        <div class="card">
+            <h1>休闲比赛历史结果分析工具 (v12-在线版)</h1>
+            <div id="data-controls"><h2>1. 数据状态</h2><div id="file-status" class="status-message" style="display:none;"></div></div>
+        </div>
+
+        <!-- The rest of the cards are identical to v11 -->
+        <!-- Card 2: Strategy Params -->
+        <div class="card">
+            <h2>2. 策略参数</h2>
+            <p class="note-text">此处的随机选项仅用于“3. 策略定义与执行”中的“随机生成并验证”按钮。</p>
+            <div class="control-grid">
+                <div class="control-item"><label for="parlay-size">串关数 (1-9)</label><input type="number" id="parlay-size" value="2" min="1" max="9"></div>
+                <div class="control-item"><label for="multiplier">基础倍数</label><input type="number" id="multiplier" value="1" min="1"></div>
+                <div class="control-item"><label for="random-max-selections-default">随机默认最多选几项</label><input type="number" id="random-max-selections-default" value="2" min="1"></div>
+                <div class="control-item"><label for="random-max-selections-wdl">(让球)胜平负最多选几项</label><input type="number" id="random-max-selections-wdl" value="1" min="1"></div>
+                <div class="control-item"><button id="generate-btn">生成/重置策略编辑器</button></div>
+            </div>
+        </div>
+        
+        <!-- Card 3 to 6: ... (Same as v11) ... -->
+        <div id="strategy-card" class="card" style="display:none;">
+            <h2>3. 策略定义与执行</h2>
+            <div id="strategy-builder"></div>
+            <div id="strategy-management" class="control-grid" style="margin-top: 20px; border-top: 1px solid var(--border-color); padding-top: 20px;">
+                <div class="control-item"><label for="strategy-name">策略名称</label><input type="text" id="strategy-name" placeholder="为当前策略命名..."></div>
+                <div class="control-item"><button id="save-strategy-btn">保存当前策略</button></div>
+                <div class="control-item"><label for="saved-strategies">加载已存策略</label><select id="saved-strategies"></select></div>
+                <div class="control-item"><button id="load-strategy-btn">加载选中策略</button></div>
+                <div class="control-item"><button id="delete-strategy-btn">删除选中策略</button></div>
+                <div class="control-item"><button id="export-saved-strategies-btn">导出所有已存策略</button></div>
+            </div>
+            <div class="control-grid" style="margin-top: 20px; border-top: 1px solid var(--border-color); padding-top: 20px;">
+                <div class="control-item"><button id="run-simulation-btn">验证当前策略</button></div>
+                <div class="control-item"><button id="random-simulation-btn">随机生成并验证</button></div>
+            </div>
+        </div>
+        
+        <div id="results-card" class="card" style="display:none;"><h2>4. 单次验证结果</h2><div id="results-summary"></div><div style="margin-top: 20px;"><button id="export-btn">导出验证过程 (Excel)</button></div></div>
+        
+        <div class="card">
+            <h2>5. 高级功能：多次随机验证</h2>
+            <div class="control-grid">
+                <div class="control-item"><label for="batch-random-runs">随机验证的总次数 (N)</label><input type="number" id="batch-random-runs" value="100" min="1"></div>
+                <div class="control-item"><label for="batch-random-top-m">展示最优结果数 (M)</label><input type="number" id="batch-random-top-m" value="10" min="1"></div>
+                <div class="control-item"><label for="batch-sort-preference">最优结果排序标准</label><select id="batch-sort-preference"><option value="win_prob">中奖概率优先</option><option value="profit_rate">盈利率优先</option><option value="balanced">平衡模式(综合评分)</option><option value="win_interval">最小间隔排序</option></select></div>
+                <div class="control-item"><label for="batch-filter-profit">最低盈利率 (%)</label><input type="number" id="batch-filter-profit" value="0"></div>
+                <div class="control-item"><label for="batch-filter-prob">最低中奖概率 (%)</label><input type="number" id="batch-filter-prob" value="0"></div>
+            </div>
+            <h3 style="margin-top: 20px; margin-bottom: 10px;">分场次随机选项数上限</h3><div id="batch-random-leg-config" class="control-grid"></div>
+            <h3 style="margin-top: 20px; margin-bottom: 10px;">分场次随机验证途径</h3>
+            <div id="batch-random-type-config" class="control-grid"></div>
+            <div class="control-grid" style="margin-top:15px;"><div class="control-item"><button id="set-all-random-btn">一键设为完全随机</button></div></div>
+            <div class="control-grid" style="margin-top: 20px; border-top: 1px solid var(--border-color); padding-top: 20px;"><div class="control-item"><button id="run-batch-random-btn">执行多次随机验证</button></div></div>
+            <div class="loader" id="loader"></div><div id="simulation-progress" class="status-message status-info" style="display:none;"></div>
+        </div>
+        
+        <div id="batch-results-card" class="card" style="display:none;">
+            <h2 id="batch-results-title">6. 批量验证最优结果</h2>
+            <p class="note-text">注：仅展示中奖次数不小于2次的策略，以便计算有效的中奖间隔。</p>
+            <div id="batch-results-table-container"></div>
+            <div class="batch-results-actions">
+                <button id="export-all-batch-btn">导出全部 N 条验证结果</button>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // --- NEW: Password Protection Logic ---
+        const ACCESS_PASSWORD = '123Ok456'; // <--- 在这里设置你的访问密码
+        
+        document.addEventListener('DOMContentLoaded', () => {
+            const overlay = document.getElementById('password-overlay');
+            const passwordInput = document.getElementById('password-input');
+            const passwordSubmit = document.getElementById('password-submit');
+            const passwordError = document.getElementById('password-error');
+            const mainContainer = document.querySelector('.container');
+
+            const checkPassword = () => {
+                if (passwordInput.value === ACCESS_PASSWORD) {
+                    overlay.style.display = 'none';
+                    mainContainer.style.display = 'grid';
+                    initializeTool(); // Initialize the main tool after password is correct
+                } else {
+                    passwordError.style.display = 'block';
+                }
+            };
+            
+            passwordSubmit.addEventListener('click', checkPassword);
+            passwordInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') checkPassword();
+            });
+        });
+
+        // --- All V11 JS code is now wrapped in this function ---
+        function initializeTool() {
+            // Global variables and constants (same as v11)
+            let MData = [], Batches = {}, batchSimulationResults = [], topMResultsCache = [];
+            const COLS = { DATE: 0, MATCH_ID: 1, BATCH_ID: 2, LEAGUE: 3, HOME_TEAM: 4, AWAY_TEAM: 5, SCORE: 6, WDL_RESULT: 7, HANDICAP: 8, HANDICAP_RESULT: 9, SCORE_RESULT: 10, SCORE_RESULT_TEXT: 11, TOTAL_GOALS: 12, TOTAL_GOALS_RESULT: 13, WDL_W: 15, WDL_D: 16, WDL_L: 17, HWDL_W: 18, HWDL_D: 19, HWDL_L: 20, GOALS_0: 21, GOALS_1: 22, GOALS_2: 23, GOALS_3: 24, GOALS_4: 25, GOALS_5: 26, GOALS_6: 27, GOALS_7P: 28, SCORE_1_0: 29, SCORE_2_0: 30, SCORE_2_1: 31, SCORE_3_0: 32, SCORE_3_1: 33, SCORE_3_2: 34, SCORE_4_0: 35, SCORE_4_1: 36, SCORE_4_2: 37, SCORE_5_0: 38, SCORE_5_1: 39, SCORE_5_2: 40, SCORE_WIN_OTHER: 41, SCORE_0_0: 42, SCORE_1_1: 43, SCORE_2_2: 44, SCORE_3_3: 45, SCORE_DRAW_OTHER: 46, SCORE_0_1: 47, SCORE_0_2: 48, SCORE_1_2: 49, SCORE_0_3: 50, SCORE_1_3: 51, SCORE_2_3: 52, SCORE_0_4: 53, SCORE_1_4: 54, SCORE_2_4: 55, SCORE_0_5: 56, SCORE_1_5: 57, SCORE_2_5: 58, SCORE_LOSE_OTHER: 59 };
+            const BET_TYPES = { wdl: { name: '胜平负', resultCol: COLS.WDL_RESULT, outcomes: { '胜': COLS.WDL_W, '平': COLS.WDL_D, '负': COLS.WDL_L } }, hwdl: { name: '让球胜平负', resultCol: COLS.HANDICAP_RESULT, outcomes: { '让胜': COLS.HWDL_W, '让平': COLS.HWDL_D, '让负': COLS.HWDL_L } }, goals: { name: '总进球', resultCol: COLS.TOTAL_GOALS_RESULT, outcomes: { '0': COLS.GOALS_0, '1': COLS.GOALS_1, '2': COLS.GOALS_2, '3': COLS.GOALS_3, '4': COLS.GOALS_4, '5': COLS.GOALS_5, '6': COLS.GOALS_6, '7+': COLS.GOALS_7P } }, score: { name: '比分', resultCol: COLS.SCORE_RESULT_TEXT, outcomes: { '1-0': COLS.SCORE_1_0, '2-0': COLS.SCORE_2_0, '2-1': COLS.SCORE_2_1, '3-0': COLS.SCORE_3_0, '3-1': COLS.SCORE_3_1, '3-2': COLS.SCORE_3_2, '4-0': COLS.SCORE_4_0, '4-1': COLS.SCORE_4_1, '4-2': COLS.SCORE_4_2, '5-0': COLS.SCORE_5_0, '5-1': COLS.SCORE_5_1, '5-2': COLS.SCORE_5_2, '胜其它': COLS.SCORE_WIN_OTHER, '0-0': COLS.SCORE_0_0, '1-1': COLS.SCORE_1_1, '2-2': COLS.SCORE_2_2, '3-3': COLS.SCORE_3_3, '平其它': COLS.SCORE_DRAW_OTHER, '0-1': COLS.SCORE_0_1, '0-2': COLS.SCORE_0_2, '1-2': COLS.SCORE_1_2, '0-3': COLS.SCORE_0_3, '1-3': COLS.SCORE_1_3, '2-3': COLS.SCORE_2_3, '0-4': COLS.SCORE_0_4, '1-4': COLS.SCORE_1_4, '2-4': COLS.SCORE_2_4, '0-5': COLS.SCORE_0_5, '1-5': COLS.SCORE_1_5, '2-5': COLS.SCORE_2_5, '负其它': COLS.SCORE_LOSE_OTHER } } };
+            const WDL_META_OPTIONS = { 'low_mid': '双选低中', 'low_high': '双选大小', 'all': '三选', 'low_one': '单选低赔' };
+            
+            // Element references (same as v11, but no fileInput)
+            const fileStatus = document.getElementById('file-status');
+            // ... (all other getElementById calls are the same) ...
+            const parlaySizeInput = document.getElementById('parlay-size'), generateBtn = document.getElementById('generate-btn');
+            const strategyBuilder = document.getElementById('strategy-builder'), strategyCard = document.getElementById('strategy-card');
+            const runBtn = document.getElementById('run-simulation-btn'), randomBtn = document.getElementById('random-simulation-btn');
+            const runBatchBtn = document.getElementById('run-batch-random-btn');
+            const loader = document.getElementById('loader'), progress = document.getElementById('simulation-progress');
+            const resultsCard = document.getElementById('results-card'), exportBtn = document.getElementById('export-btn');
+            const saveBtn = document.getElementById('save-strategy-btn'), loadBtn = document.getElementById('load-strategy-btn'), deleteBtn = document.getElementById('delete-strategy-btn'), savedStrategiesSelect = document.getElementById('saved-strategies');
+            const batchResultsCard = document.getElementById('batch-results-card');
+            const setAllRandomBtn = document.getElementById('set-all-random-btn');
+            const exportAllBatchBtn = document.getElementById('export-all-batch-btn');
+            const exportSavedStrategiesBtn = document.getElementById('export-saved-strategies-btn');
+
+            // --- MODIFIED: Data loading logic ---
+            async function loadData() {
+                showStatus('正在从服务器加载数据...', 'info');
+                loader.style.display = 'block';
+                setButtonsState(false);
+                try {
+                    const response = await fetch('data.json');
+                    if (!response.ok) {
+                        throw new Error(`网络响应错误: ${response.statusText}`);
+                    }
+                    const jsonData = await response.json();
+                    MData = jsonData;
+                    Batches = {};
+                    MData.forEach(row => {
+                        const batchId = row[COLS.BATCH_ID];
+                        if (!Batches[batchId]) Batches[batchId] = [];
+                        Batches[batchId].push(row);
+                    });
+                    showStatus(`数据加载成功！共 ${MData.length} 条比赛记录, ${Object.keys(Batches).length} 个批次。`, 'success', 5000);
+                    setButtonsState(true);
+                } catch (err) {
+                    showStatus(`数据加载失败！请联系管理员。错误详情: ${err.message}`, 'error');
+                    setButtonsState(false);
+                } finally {
+                    loader.style.display = 'none';
+                }
+            }
+
+            // --- ALL OTHER JS FUNCTIONS FROM V11 ARE PLACED HERE, UNCHANGED ---
+            // For brevity, I'll just put placeholders. Copy the full functions from v11.
+            // function setButtonsState(enabled) { ... }
+            // function showStatus(message, type = 'info', duration = 0) { ... }
+            // function showProgress(message) { ... }
+            // function updateBatchConfigUI() { ... }
+            // function setAllLegTypesToRandom() { ... }
+            // function generateStrategyUI() { ... }
+            // ... and so on for all functions until the end.
+            
+            // The rest of the JS code from v11 is exactly the same.
+            // Just copy and paste it here.
+            // ...
+            function setButtonsState(enabled) { [runBtn, randomBtn, runBatchBtn, saveBtn, generateBtn, exportSavedStrategiesBtn].forEach(btn => btn.disabled = !enabled); }
+            function showStatus(message, type = 'info', duration = 0) { fileStatus.textContent = message; fileStatus.className = `status-message status-${type}`; fileStatus.style.display = 'block'; if (duration > 0) setTimeout(() => fileStatus.style.display = 'none', duration); }
+            function showProgress(message) { progress.textContent = message; progress.style.display = message ? 'block' : 'none'; }
+            function updateBatchConfigUI() {
+                const parlaySize = parseInt(parlaySizeInput.value, 10) || 0;
+                const configContainer = document.getElementById('batch-random-leg-config');
+                const typeContainer = document.getElementById('batch-random-type-config');
+                configContainer.innerHTML = ''; typeContainer.innerHTML = '';
+                const typeOptions = `<option value="random">完全随机验证</option>` + Object.keys(BET_TYPES).map(key => `<option value="${key}">${BET_TYPES[key].name}</option>`).join('');
+                for (let i = 0; i < parlaySize; i++) {
+                    configContainer.innerHTML += `<div class="control-item"><label for="batch-leg-max-${i}">第 ${i + 1} 场最多选几项</label><input type="number" id="batch-leg-max-${i}" value="2" min="1"></div>`;
+                    typeContainer.innerHTML += `<div class="control-item"><label for="batch-type-select-${i}">第 ${i + 1} 场验证途径</label><select id="batch-type-select-${i}">${typeOptions}</select></div>`;
+                }
+            }
+            function setAllLegTypesToRandom() { const parlaySize = parseInt(parlaySizeInput.value, 10) || 0; for (let i = 0; i < parlaySize; i++) { const select = document.getElementById(`batch-type-select-${i}`); if (select) select.value = 'random'; } showStatus('所有场次已设为完全随机验证。', 'info', 3000); }
+            function generateStrategyUI() { const parlaySize = parseInt(parlaySizeInput.value, 10); if (isNaN(parlaySize) || parlaySize < 1) { alert('请输入有效的串关数。'); return; } strategyBuilder.innerHTML = ''; for (let i = 0; i < parlaySize; i++) { const legDiv = document.createElement('div'); legDiv.className = 'parlay-leg'; legDiv.id = `leg-${i}`; const optionsHtml = Object.keys(BET_TYPES).map(key => `<option value="${key}">${BET_TYPES[key].name}</option>`).join(''); legDiv.innerHTML = `<div class="parlay-leg-header"><h3>第 ${i + 1} 场</h3><select class="bet-type-select" data-leg="${i}">${optionsHtml}</select></div><div class="outcome-selector" id="outcome-selector-${i}"></div>`; strategyBuilder.appendChild(legDiv); } document.querySelectorAll('.bet-type-select').forEach(select => { select.addEventListener('change', (e) => updateOutcomeSelector(e.target)); updateOutcomeSelector(select); }); strategyCard.style.display = 'block'; }
+            function updateOutcomeSelector(select) { const legIndex = select.dataset.leg, betType = select.value, selectorDiv = document.getElementById(`outcome-selector-${legIndex}`); const grid = document.createElement('div'); grid.className = 'outcome-grid'; for (const outcome in BET_TYPES[betType].outcomes) { grid.appendChild(createCheckboxItem(legIndex, outcome, 'direct')); } if (betType === 'wdl' || betType === 'hwdl') { for (const key in WDL_META_OPTIONS) { grid.appendChild(createCheckboxItem(legIndex, key, 'meta', WDL_META_OPTIONS[key])); } } selectorDiv.innerHTML = ''; selectorDiv.appendChild(grid); }
+            function createCheckboxItem(legIndex, value, type, label) { const item = document.createElement('div'); item.className = 'outcome-item'; const id = `chk-${legIndex}-${value}`; item.innerHTML = `<input type="checkbox" id="${id}" value="${value}" data-type="${type}" data-leg="${legIndex}"><label for="${id}">${label || value}</label>`; item.querySelector('input').addEventListener('change', handleWdlCheckboxChange); return item; }
+            function handleWdlCheckboxChange(e) { const cb = e.target; if (!['wdl', 'hwdl'].includes(document.querySelector(`.bet-type-select[data-leg="${cb.dataset.leg}"]`).value)) return; const selectorDiv = cb.closest('.outcome-selector'); const metaCBs = selectorDiv.querySelectorAll(`input[data-type="meta"]`), directCBs = selectorDiv.querySelectorAll(`input[data-type="direct"]`); if (cb.checked) { if (cb.dataset.type === 'meta') { metaCBs.forEach(c => { if (c !== cb) c.checked = false; }); directCBs.forEach(c => { c.checked = false; c.disabled = true; }); } else { metaCBs.forEach(c => { c.checked = false; c.disabled = true; }); } } else { if (!Array.from(selectorDiv.querySelectorAll('input:checked')).length) { metaCBs.forEach(c => c.disabled = false); directCBs.forEach(c => c.disabled = false); } } }
+            function getStrategyFromUI() { let strategy = []; for (let i = 0; i < strategyBuilder.children.length; i++) { const legDiv = document.getElementById(`leg-${i}`); if (!legDiv) continue; const type = legDiv.querySelector('.bet-type-select').value; const selectedOutcomes = Array.from(legDiv.querySelectorAll('.outcome-selector input:checked')).map(cb => cb.value); if (selectedOutcomes.length === 0) { alert(`第 ${i + 1} 场比赛至少需要选择一个结果。`); return null; } strategy.push({ type, selections: selectedOutcomes }); } return strategy; }
+            function generateRandomStrategy(useGlobalSettings = true) { const parlaySize = parseInt(parlaySizeInput.value, 10); generateStrategyUI(); for (let i = 0; i < parlaySize; i++) { const legDiv = document.getElementById(`leg-${i}`), typeSelect = legDiv.querySelector('.bet-type-select'); let randomType; if (useGlobalSettings) { const betTypes = Object.keys(BET_TYPES); randomType = betTypes[Math.floor(Math.random() * betTypes.length)]; } else { const legTypeSelect = document.getElementById(`batch-type-select-${i}`).value; if (legTypeSelect === 'random') { const betTypes = Object.keys(BET_TYPES); randomType = betTypes[Math.floor(Math.random() * betTypes.length)]; } else { randomType = legTypeSelect; } } typeSelect.value = randomType; updateOutcomeSelector(typeSelect); let allCheckboxes = Array.from(legDiv.querySelectorAll('.outcome-selector input[type="checkbox"]')); let selectableCheckboxes = (randomType === 'wdl' || randomType === 'hwdl') ? allCheckboxes.filter(cb => !['low_mid', 'low_high', 'all'].includes(cb.value)) : allCheckboxes; if (selectableCheckboxes.length === 0) continue; let maxSelections = (useGlobalSettings) ? ((randomType === 'wdl' || randomType === 'hwdl') ? parseInt(document.getElementById('random-max-selections-wdl').value, 10) : parseInt(document.getElementById('random-max-selections-default').value, 10)) : parseInt(document.getElementById(`batch-leg-max-${i}`).value, 10); maxSelections = Math.min(maxSelections || 1, selectableCheckboxes.length); const numToSelect = Math.floor(Math.random() * maxSelections) + 1; const shuffled = selectableCheckboxes.sort(() => 0.5 - Math.random()); for (let j = 0; j < numToSelect; j++) { if (shuffled[j]) { shuffled[j].checked = true; shuffled[j].dispatchEvent(new Event('change')); } } } }
+            async function runSingleSimulation(isRandom) { if (MData.length === 0) { alert('数据尚未加载，请稍候或联系管理员。'); return; } loader.style.display = 'block'; [resultsCard, batchResultsCard].forEach(c => c.style.display = 'none'); setButtonsState(false); showProgress(isRandom ? '正在随机生成策略并验证...' : '正在验证当前策略...'); await new Promise(resolve => setTimeout(resolve, 50)); if (isRandom) generateRandomStrategy(true); const strategy = getStrategyFromUI(); if (!strategy) { loader.style.display = 'none'; showProgress(''); setButtonsState(true); return; } const result = performSimulation(strategy); displaySingleResult(result); loader.style.display = 'none'; showProgress(''); resultsCard.style.display = 'block'; exportBtn.onclick = () => exportResultsToExcel(result.simulationLog, "simulation_results.xlsx"); setButtonsState(true); }
+            async function runBatchRandomSimulation() { if (MData.length === 0) { alert('数据尚未加载，请稍候或联系管理员。'); return; } const N = parseInt(document.getElementById('batch-random-runs').value, 10), M = parseInt(document.getElementById('batch-random-top-m').value, 10); const sortPref = document.getElementById('batch-sort-preference').value, minProfit = parseFloat(document.getElementById('batch-filter-profit').value) || 0, minProb = parseFloat(document.getElementById('batch-filter-prob').value) || 0; if (isNaN(N) || N < 1 || isNaN(M) || M < 1) { alert('请输入有效的验证次数和展示结果数。'); return; } loader.style.display = 'block'; [resultsCard, batchResultsCard].forEach(c => c.style.display = 'none'); setButtonsState(false); batchSimulationResults = []; for (let i = 0; i < N; i++) { showProgress(`正在进行第 ${i + 1} / ${N} 次随机验证...`); await new Promise(resolve => setTimeout(resolve, 5)); generateRandomStrategy(false); const strategy = getStrategyFromUI(); if (strategy) { const result = performSimulation(strategy); result.strategy = strategy; batchSimulationResults.push(result); } } const filteredResults = batchSimulationResults.filter(r => r.profitRate >= minProfit && r.winProbability >= minProb && r.winCount >= 2); filteredResults.sort((a, b) => { if (sortPref === 'profit_rate') return b.profitRate - a.profitRate; if (sortPref === 'balanced') return (b.winProbability * b.profitRate) - (a.winProbability * a.profitRate); if (sortPref === 'win_interval') return a.avgWinInterval - b.avgWinInterval; return b.winProbability - a.winProbability; }); topMResultsCache = filteredResults.slice(0, M); displayBatchResults(topMResultsCache, sortPref, filteredResults.length); loader.style.display = 'none'; showProgress('批量验证完成！'); batchResultsCard.style.display = 'block'; setButtonsState(true); }
+            function performSimulation(strategy) { const multiplier = parseInt(document.getElementById('multiplier').value, 10) || 1, parlaySize = strategy.length; let totalCost = 0, totalWinnings = 0, winCount = 0, batchesProcessed = 0, lastWinBatchId = null, winIntervals = []; let simulationLog = [['批次ID', '比赛ID', '主队', '客队', '投注类型', '投注选项', '开奖结果', '是否命中', '赔率', '中奖间隔', '组合成本', '组合奖金']]; const sortedBatchIds = Object.keys(Batches).sort((a, b) => parseInt(a, 10) - parseInt(b, 10)); for (const batchId of sortedBatchIds) { const numericBatchId = parseInt(batchId, 10), batchGames = Batches[batchId]; if (batchGames.length < parlaySize) continue; let gamesForThisBatch = [], gameIndex = 0; for (let i = 0; i < parlaySize; i++) { let foundValidGame = false; while (gameIndex < batchGames.length) { const game = batchGames[gameIndex++], betTypeInfo = BET_TYPES[strategy[i].type]; if (Object.values(betTypeInfo.outcomes).every(col => !isNaN(parseFloat(game[col])) && parseFloat(game[col]) > 0)) { gamesForThisBatch.push(game); foundValidGame = true; break; } } if (!foundValidGame) break; } if (gamesForThisBatch.length < parlaySize) continue; batchesProcessed++; const resolvedStrategy = gamesForThisBatch.map((game, i) => resolveMetaSelections(strategy[i], game)); const combinations = resolvedStrategy.reduce((acc, leg) => acc * leg.selections.length, 1); const batchCost = 2 * combinations * multiplier; totalCost += batchCost; const winningCombinations = findWinningCombinations(resolvedStrategy); let batchWinnings = 0, currentWinInterval = null; if (winningCombinations.length > 0) { winCount++; if (lastWinBatchId !== null) { currentWinInterval = numericBatchId - lastWinBatchId; winIntervals.push(currentWinInterval); } lastWinBatchId = numericBatchId; winningCombinations.forEach(combo => { batchWinnings += 2 * multiplier * combo.reduce((acc, leg) => acc * leg.odd, 1); }); totalWinnings += batchWinnings; } logBatchResult(simulationLog, batchId, gamesForThisBatch, strategy, resolvedStrategy, winningCombinations, batchCost, batchWinnings, currentWinInterval); } const avgWinInterval = winIntervals.length > 0 ? winIntervals.reduce((a, b) => a + b, 0) / winIntervals.length : 0; return { winCount, totalCost, totalWinnings, batchesProcessed, profitRate: totalCost > 0 ? ((totalWinnings - totalCost) / totalCost * 100) : 0, winProbability: batchesProcessed > 0 ? (winCount / batchesProcessed * 100) : 0, avgWinInterval, simulationLog }; }
+            function displaySingleResult(result) { document.getElementById('results-summary').innerHTML = `<div class="result-item"><div class="label">中奖次数</div><div class="value">${result.winCount}</div></div> <div class="result-item"><div class="label">总投入</div><div class="value">${result.totalCost.toFixed(2)}</div></div> <div class="result-item"><div class="label">总获奖</div><div class="value">${result.totalWinnings.toFixed(2)}</div></div> <div class="result-item"><div class="label">盈利率</div><div class="value">${result.profitRate.toFixed(2)}%</div></div> <div class="result-item"><div class="label">中奖概率</div><div class="value">${result.winProbability.toFixed(2)}%</div></div> <div class="result-item"><div class="label">验证批次数</div><div class="value">${result.batchesProcessed}</div></div><div class="result-item"><div class="label">平均中奖间隔</div><div class="value">${result.avgWinInterval.toFixed(1)}</div></div>`; }
+            function displayBatchResults(topMResults, sortPref, filteredCount) { document.getElementById('batch-results-title').textContent = `6. 批量验证最优结果 (从 ${filteredCount} 个符合条件的结果中筛选)`; let header = `<th>排名</th>`; if (sortPref === 'balanced') header += `<th>综合评分</th>`; header += `<th>中奖概率</th><th>盈利率</th><th>中奖次数</th><th>平均间隔</th><th>策略详情</th><th>操作</th>`; let tableHtml = `<table><thead><tr>${header}</tr></thead><tbody>`; topMResults.forEach((result, index) => { const strategyString = result.strategy.map(leg => `${BET_TYPES[leg.type].name}: [${leg.selections.join(', ')}]`).join('; '); const winProbClass = sortPref === 'win_prob' ? 'highlight-col' : '', profitRateClass = sortPref === 'profit_rate' ? 'highlight-col' : '', intervalClass = sortPref === 'win_interval' ? 'highlight-col' : '', balancedClass = sortPref === 'balanced' ? 'highlight-col' : ''; tableHtml += `<tr><td>${index + 1}</td>`; if (sortPref === 'balanced') tableHtml += `<td class="${balancedClass}">${(result.winProbability * result.profitRate).toFixed(2)}</td>`; tableHtml += `<td class="${winProbClass}">${result.winProbability.toFixed(2)}%</td> <td class="${profitRateClass}">${result.profitRate.toFixed(2)}%</td><td>${result.winCount}</td><td class="${intervalClass}">${result.avgWinInterval.toFixed(1)}</td><td class="strategy-details">${strategyString}</td> <td><button class="export-batch-detail-btn" data-index="${index}">导出详情</button><button class="save-batch-strategy-btn" data-index="${index}" style="margin-left: 5px;">保存</button></td> </tr>`; }); tableHtml += '</tbody></table>'; document.getElementById('batch-results-table-container').innerHTML = tableHtml; document.querySelectorAll('.export-batch-detail-btn').forEach(btn => btn.addEventListener('click', e => { const res = topMResults[parseInt(e.target.dataset.index)]; if (res) exportResultsToExcel(res.simulationLog, `batch_result_rank_${parseInt(e.target.dataset.index) + 1}.xlsx`); })); document.querySelectorAll('.save-batch-strategy-btn').forEach(btn => btn.addEventListener('click', e => { saveStrategyFromBatch(parseInt(e.target.dataset.index)); })); }
+            function resolveMetaSelections(legStrategy, game) { const betInfo = BET_TYPES[legStrategy.type]; let resolvedSelections = new Set(); if (legStrategy.type === 'wdl' || legStrategy.type === 'hwdl') { const prefix = legStrategy.type === 'hwdl' ? '让' : ''; const allOdds = [ { outcome: prefix + '胜', odd: parseFloat(game[betInfo.outcomes[prefix + '胜']]) }, { outcome: prefix + '平', odd: parseFloat(game[betInfo.outcomes[prefix + '平']]) }, { outcome: prefix + '负', odd: parseFloat(game[betInfo.outcomes[prefix + '负']]) } ].filter(o => !isNaN(o.odd) && o.odd > 0); const sortedOdds = [...allOdds].sort((a, b) => a.odd - b.odd); legStrategy.selections.forEach(sel => { if (WDL_META_OPTIONS[sel]) { if (sortedOdds.length > 0 && sel === 'low_one') resolvedSelections.add(sortedOdds[0].outcome); if (sortedOdds.length > 1 && sel === 'low_mid') { resolvedSelections.add(sortedOdds[0].outcome); resolvedSelections.add(sortedOdds[1].outcome); } if (sortedOdds.length > 2 && sel === 'low_high') { resolvedSelections.add(sortedOdds[0].outcome); resolvedSelections.add(sortedOdds[2].outcome); } if (sel === 'all') allOdds.forEach(o => resolvedSelections.add(o.outcome)); } else { resolvedSelections.add(sel); } }); } else { resolvedSelections = new Set(legStrategy.selections); } const finalSelections = Array.from(resolvedSelections).map(selection => ({ selection, odd: betInfo.outcomes[selection] !== undefined ? parseFloat(game[betInfo.outcomes[selection]]) : 0, result: String(game[betInfo.resultCol]) })); return { selections: finalSelections, game: game }; }
+            function findWinningCombinations(resolvedStrategy) { if (resolvedStrategy.some(leg => leg.selections.length === 0)) return []; const results = []; const counters = new Array(resolvedStrategy.length).fill(0); while (true) { const currentCombination = resolvedStrategy.map((leg, i) => leg.selections[counters[i]]); if (currentCombination.every(legPart => String(legPart.result) === legPart.selection)) { results.push(currentCombination); } let k = resolvedStrategy.length - 1; while (k >= 0) { counters[k]++; if (counters[k] < resolvedStrategy[k].selections.length) break; counters[k] = 0; k--; } if (k < 0) break; } return results; }
+            function logBatchResult(log, batchId, games, strategy, resolvedStrategy, winningCombos, cost, winnings, winInterval) { for (let i = 0; i < games.length; i++) { const game = games[i], leg = resolvedStrategy[i]; if (!leg || leg.selections.length === 0) continue; const selections = leg.selections.map(s => s.selection).join(', '), gameResult = leg.selections[0].result; const isHit = leg.selections.some(s => String(s.selection) === String(gameResult)); const winningOdd = isHit ? leg.selections.find(s => String(s.selection) === String(gameResult)).odd : '-'; log.push([ batchId, game[COLS.MATCH_ID], game[COLS.HOME_TEAM], game[COLS.AWAY_TEAM], BET_TYPES[strategy[i].type].name, selections, gameResult, isHit ? '是' : '否', winningOdd, (i === 0 && winInterval) ? winInterval : '', (i === 0) ? cost : '', (i === 0 && winningCombos.length > 0) ? winnings.toFixed(2) : '' ]); } }
+            function exportResultsToExcel(logData, filename) { if(!logData || logData.length <= 1) { alert('没有可导出的数据。'); return; } const ws = XLSX.utils.aoa_to_sheet(logData); const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "Simulation Details"); XLSX.writeFile(wb, filename); }
+            function saveStrategy(name, strategy, config) { if (!name) return; let saved = JSON.parse(localStorage.getItem('bettingStrategies') || '{}'); saved[name] = { parlaySize: strategy.length, multiplier: config ? config.multiplier : parseInt(document.getElementById('multiplier').value, 10), strategy: strategy }; localStorage.setItem('bettingStrategies', JSON.stringify(saved)); showStatus(`策略 "${name}" 已保存。`, 'success', 3000); loadSavedStrategies(); }
+            function saveStrategyFromUI() { const name = document.getElementById('strategy-name').value.trim(); if (!name) { alert('请输入策略名称！'); return; } const strategy = getStrategyFromUI(); if (!strategy) return; saveStrategy(name, strategy); }
+            function saveStrategyFromBatch(index) { const result = topMResultsCache[index]; if (!result) return; const defaultName = `策略_P${result.winProbability.toFixed(1)}%_R${result.profitRate.toFixed(1)}%_I${result.avgWinInterval.toFixed(0)}`; const name = prompt("请输入要保存的策略名称:", defaultName); if (name) saveStrategy(name, result.strategy, { multiplier: parseInt(document.getElementById('multiplier').value, 10) }); }
+            function loadSavedStrategies() { savedStrategiesSelect.innerHTML = '<option value="">选择一个已存策略</option>'; let saved = JSON.parse(localStorage.getItem('bettingStrategies') || '{}'); const hasStrategies = Object.keys(saved).length > 0; for (const name in saved) { savedStrategiesSelect.innerHTML += `<option value="${name}">${name}</option>`; } [loadBtn, deleteBtn, exportSavedStrategiesBtn].forEach(b => b.disabled = !hasStrategies); }
+            function loadStrategy() { const name = savedStrategiesSelect.value; if (!name) { alert('请选择一个要加载的策略。'); return; } let saved = JSON.parse(localStorage.getItem('bettingStrategies') || '{}'); const config = saved[name]; if (config) { parlaySizeInput.value = config.parlaySize; document.getElementById('multiplier').value = config.multiplier; document.getElementById('strategy-name').value = name; generateStrategyUI(); setTimeout(() => { config.strategy.forEach((leg, i) => { const legDiv = document.getElementById(`leg-${i}`); if (legDiv) { const typeSelect = legDiv.querySelector('.bet-type-select'); typeSelect.value = leg.type; updateOutcomeSelector(typeSelect); leg.selections.forEach(sel => { const checkbox = legDiv.querySelector(`input[value="${sel}"]`); if (checkbox) {checkbox.checked = true; checkbox.dispatchEvent(new Event('change'));} }); } }); showStatus(`策略 "${name}" 已加载。`, 'info', 3000);}, 100); } }
+            function deleteStrategy() { const name = savedStrategiesSelect.value; if (!name) { alert('请选择一个要删除的策略。'); return; } if (confirm(`您确定要删除策略 "${name}" 吗？此操作无法撤销。`)) { let saved = JSON.parse(localStorage.getItem('bettingStrategies') || '{}'); delete saved[name]; localStorage.setItem('bettingStrategies', JSON.stringify(saved)); showStatus(`策略 "${name}" 已删除。`, 'success', 3000); document.getElementById('strategy-name').value = ''; loadSavedStrategies(); } }
+            function exportAllBatchResultsToExcel() { if (batchSimulationResults.length === 0) { alert('没有批量验证结果可导出。'); return; } const dataToExport = [['中奖概率(%)', '盈利率(%)', '中奖次数', '平均间隔', '串关数', '策略详情']]; batchSimulationResults.forEach(res => { const strategyString = res.strategy.map(leg => `${BET_TYPES[leg.type].name}: [${leg.selections.join(', ')}]`).join('; '); dataToExport.push([res.winProbability.toFixed(4), res.profitRate.toFixed(4), res.winCount, res.avgWinInterval.toFixed(2), res.strategy.length, strategyString]); }); exportResultsToExcel(dataToExport, "all_batch_simulation_summary.xlsx"); }
+            function exportSavedStrategies() { const saved = JSON.parse(localStorage.getItem('bettingStrategies') || '{}'); if (Object.keys(saved).length === 0) { alert('没有已存策略可导出。'); return; } const dataToExport = [['策略名称', '串关数', '基础倍数', '策略详情']]; for (const name in saved) { const config = saved[name]; const strategyString = config.strategy.map(leg => `${BET_TYPES[leg.type].name}: [${leg.selections.join(', ')}]`).join('; '); dataToExport.push([name, config.parlaySize, config.multiplier, strategyString]); } exportResultsToExcel(dataToExport, "saved_strategies.xlsx"); }
+            
+            // --- Initialization ---
+            generateBtn.addEventListener('click', generateStrategyUI);
+            parlaySizeInput.addEventListener('input', updateBatchConfigUI);
+            runBtn.addEventListener('click', () => runSingleSimulation(false));
+            randomBtn.addEventListener('click', () => runSingleSimulation(true));
+            runBatchBtn.addEventListener('click', runBatchRandomSimulation);
+            saveBtn.addEventListener('click', () => saveStrategyFromUI());
+            loadBtn.addEventListener('click', loadStrategy);
+            deleteBtn.addEventListener('click', deleteStrategy);
+            setAllRandomBtn.addEventListener('click', setAllLegTypesToRandom);
+            exportAllBatchBtn.addEventListener('click', exportAllBatchResultsToExcel);
+            exportSavedStrategiesBtn.addEventListener('click', exportSavedStrategies);
+            
+            loadSavedStrategies();
+            updateBatchConfigUI();
+            loadData(); // This is the new entry point for data loading
+        }
+    </script>
+</body>
+</html>

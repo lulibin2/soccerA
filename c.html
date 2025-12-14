@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>数据转换工具 (XLSX to JSON)</title>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@latest/dist/xlsx.full.min.js"></script>
+    <style>
+        body { font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; background-color: #f0f2f5; margin: 0; }
+        .container { background: white; padding: 40px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); text-align: center; }
+        h1 { color: #333; }
+        input[type="file"] { margin: 20px 0; }
+        button { padding: 10px 20px; font-size: 16px; cursor: pointer; background-color: #007bff; color: white; border: none; border-radius: 4px; }
+        button:disabled { background-color: #ccc; }
+        p { color: #666; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Mdata.xlsx 数据转换器</h1>
+        <p>请上传您的 Mdata.xlsx 文件，工具会将其转换为 data.json 文件。</p>
+        <input type="file" id="xlsx-file" accept=".xlsx,.xls">
+        <br>
+        <button id="convert-btn" disabled>转换并下载 data.json</button>
+        <p id="status"></p>
+    </div>
+    <script>
+        let jsonData = null;
+        const fileInput = document.getElementById('xlsx-file');
+        const convertBtn = document.getElementById('convert-btn');
+        const statusEl = document.getElementById('status');
+
+        fileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            statusEl.textContent = '正在读取文件...';
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                try {
+                    const data = event.target.result;
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+                    // 使用 range: 2 来跳过前两行表头
+                    const rawData = XLSX.utils.sheet_to_json(worksheet, { header: 1, range: 2 });
+                    // 过滤掉批次ID为空的无效行
+                    jsonData = rawData.filter(row => row && row.length > 2 && row[2]);
+                    statusEl.textContent = `文件读取成功！共 ${jsonData.length} 条有效记录。可以转换了。`;
+                    convertBtn.disabled = false;
+                } catch (err) {
+                    statusEl.textContent = `文件解析失败: ${err.message}`;
+                    convertBtn.disabled = true;
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        });
+
+        convertBtn.addEventListener('click', () => {
+            if (!jsonData) return;
+            const jsonString = JSON.stringify(jsonData);
+            const blob = new Blob([jsonString], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'data.json';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            statusEl.textContent = 'data.json 文件已下载！';
+        });
+    </script>
+</body>
+</html>
